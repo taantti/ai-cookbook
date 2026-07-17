@@ -1,0 +1,41 @@
+import { find<Models>, find<Model>ById, create<Model> as modelCreate<Model>, update<Model>ById, delete<Model>ById } from '../../../models/index.js';
+
+/**
+ * @param {Object} req - Express request object
+ * @returns {Promise<any>}
+ */
+export const create<Model> = async (req) => {
+    return await modelCreate<Model>(req, req.body, false, true, true);
+};
+
+/**
+ * @param {Object} req - Express request object
+ * @returns {Promise<any>}
+ */
+export const read<Model> = async (req) => {
+    return await find<Model>ById(req, req.params.id, false, true, true);
+};
+
+/**
+ * @param {Object} req - Express request object
+ * @returns {Promise<any>}
+ */
+export const read<Models> = async (req) => {
+    return await find<Models>(req, req.query, false, true, true);
+};
+
+/**
+ * @param {Object} req - Express request object
+ * @returns {Promise<any>}
+ */
+export const update<Model> = async (req) => {
+    return await update<Model>ById(req, req.params.id, req.body, false, true, true);
+};
+
+/**
+ * @param {Object} req - Express request object
+ * @returns {Promise<any>}
+ */
+export const delete<Model> = async (req) => {
+    return await delete<Model>ById(req, req.params.id, false);
+};

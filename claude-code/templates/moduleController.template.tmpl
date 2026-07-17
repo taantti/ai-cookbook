@@ -1,0 +1,81 @@
+import { <model>Service } from './services/index.js';
+
+/**
+ * Read all <models>
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next middleware function
+ */
+export const read<Models> = async (req, res, next) => {
+    try {
+        const <models> = await <model>Service.read<Models>(req);
+        res.status(200).json(<models>);
+    } catch (error) {
+        return next(error);
+    }
+};
+
+/**
+ * Read a single <model>
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next middleware function
+ */
+export const read<Model> = async (req, res, next) => {
+    try {
+        const <model> = await <model>Service.read<Model>(req);
+        if (!<model>) return res.status(404).json({ error: '<Model> not found' });
+        res.status(200).json(<model>);
+    } catch (error) {
+        return next(error);
+    }
+};
+
+/**
+ * Create a new <model>
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next middleware function
+ */
+export const create<Model> = async (req, res, next) => {
+    try {
+        const new<Model> = await <model>Service.create<Model>(req);
+        if (!new<Model>) return res.status(400).json({ error: '<Model> not created' });
+        res.status(201).json(new<Model>);
+    } catch (error) {
+        return next(error);
+    }
+};
+
+/**
+ * Update a <model>
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next middleware function
+ */
+export const update<Model> = async (req, res, next) => {
+    try {
+        const updated<Model> = await <model>Service.update<Model>(req);
+        if (!updated<Model>) return res.status(404).json({ error: '<Model> not found' });
+        res.status(200).json(updated<Model>);
+    } catch (error) {
+        return next(error);
+    }
+};
+
+/**
+ * Delete a <model>
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next middleware function
+ */
+export const delete<Model> = async (req, res, next) => {
+    try {
+        const deleted<Model> = await <model>Service.delete<Model>(req);
+        if (!deleted<Model>) return res.status(404).json({ error: '<Model> not found' });
+        res.status(200).json({ msg: '<Model> deleted' });
+    } catch (error) {
+        return next(error);
+    }
+};
+

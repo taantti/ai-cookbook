@@ -1,0 +1,15 @@
+/**
+ * Create a mock <model> for testing
+ * @param {Object} [options={}] - Fields to override the defaults.
+ * @returns {Promise<<Model>>}
+ */
+export const createMock<Model> = async (options = {}) => {
+    const mock<Model>Data = { ...mockData.<model>[0], tenant: mockTenantId, ...options };
+
+    try {
+        const <model>Model = new <Model>(mock<Model>Data);
+        return await <model>Model.save();
+    } catch (error) {
+        throw error;
+    }
+}

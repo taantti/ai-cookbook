@@ -1,0 +1,98 @@
+import app from "../../../../src/app.js";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { setup, teardown } from "../../../setup/db.js";
+import request from 'supertest';
+import { createMockTenant, createMockRole, createMockUser } from "../../../setup/mockData.js";
+import { login } from "../../../setup/login.js";
+
+let jwtToken = null;
+let <model>Data = null;
+let created<Model>Id = null;
+
+/**
+ * Create mock data for testing
+ * @returns {Promise<void>}
+ */
+const createMockData = async () => {
+    try {
+        await createMockTenant();
+        await createMockRole();
+        await createMockUser();
+    } catch (error) {
+        console.error('MOCK DATA FAILED:', error);
+        throw error;
+    }
+}
+
+/**
+ * Set up test environment
+ * @returns {Promise<void>}
+ */
+beforeAll(async () => {
+    await setup();
+    await createMockData();
+    jwtToken = (await login()).body.login;
+})
+
+/**
+ * Clean up test environment
+ * @returns {Promise<void>}
+ */
+afterAll(async () => {
+    await teardown();
+})
+
+/**
+ * Test <model> creation endpoint
+ * @returns {Promise<void>}
+ */
+describe('POST /<model>', () => {
+    it('should create new <model>', async () => {
+        <model>Data = { 
+            /* --- domain fields go here --- */
+        }
+
+        const response = await request(app).post("/<model-kebab>").set('Authorization', `Bearer ${jwtToken}`).send(<model>Data);
+        expect(response.status).toBe(201);
+        expect(response.body).toHaveProperty('_id');
+        created<Model>Id = response.body._id;
+    })
+})
+
+/**
+ * Test <model> retrieval endpoint
+ * @returns {Promise<void>}
+ */
+describe('GET /<model-kebab>/:id', () => {
+    it('should get <model> by id', async () => {
+        const response = await request(app).get("/<model-kebab>/" + created<Model>Id).set('Authorization', `Bearer ${jwtToken}`);
+        expect(response.status).toBe(200);
+        expect(response.body).toHaveProperty('_id');
+    })
+})
+
+/**
+ * Test <model> update endpoint
+ * @returns {Promise<void>}
+ */
+describe('PUT /<model-kebab>/:id', () => {
+    it('should update <model>', async () => {
+        <model>Data = { ...<model>Data, /* --- updated domain fields go here --- */ }
+        const response = await request(app).put("/<model-kebab>/" + created<Model>Id).set('Authorization', `Bearer ${jwtToken}`).send(<model>Data);
+        expect(response.status).toBe(200);
+        expect(response.body).toHaveProperty('_id');
+    })
+})
+
+/**
+ * Test <model> deletion endpoint
+ * @returns {Promise<void>}
+ */
+describe('DELETE /<model-kebab>/:id', () => {
+    it('should delete <model>', async () => {
+        const response = await request(app).delete("/<model-kebab>/" + created<Model>Id).set('Authorization', `Bearer ${jwtToken}`);
+        expect(response.status).toBe(200);
+        expect(response.body).toHaveProperty('msg');
+        expect(response.body.msg).toBe('<Model> deleted');
+    })
+})

@@ -1,0 +1,13 @@
+import express from 'express';
+import { read<Models>, read<Model>, create<Model>, update<Model>, delete<Model> } from '../modules/<model>/<model>Controller.js';
+import authorizationMiddleware from '../middlewares/authorizationMiddleware.js';
+
+const router = express.Router();
+
+router.get('/', authorizationMiddleware('<model>', 'read<Models>'), read<Models>);
+router.post('/', authorizationMiddleware('<model>', 'create<Model>'), create<Model>);
+router.get('/:id', authorizationMiddleware('<model>', 'read<Model>'), read<Model>);
+router.put('/:id', authorizationMiddleware('<model>', 'update<Model>'), update<Model>);
+router.delete('/:id', authorizationMiddleware('<model>', 'delete<Model>'), delete<Model>);
+
+export default router;

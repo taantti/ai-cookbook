@@ -1,0 +1,117 @@
+import mongoose from 'mongoose';
+import { checkUserTenantPermissions, getTenantIdForQuery, getTenantQueryCondition, setTenantForData, setAutoField, AutoField } from './modelService.js';
+import { sanitizeObjectFields } from '../utils/sanitization.js';
+import { getRelativePath } from '../utils/auxiliary.js';
+
+const relativePath = getRelativePath(import.meta.url);
+const protectedModelFields = ['__v'];
+
+/**
+ * <Model> Schema
+ * @typedef {Object} <Model>
+ * @property {Date} updatedAt
+ * @property {Date} createdAt
+ * @property {ObjectId} tenant
+ * @property {ObjectId} createdBy
+ * @property {ObjectId} updatedBy
+ */
+const <Model>Schema = new mongoose.Schema({
+    /* --- domain fields go here --- */
+    updatedAt: Date,
+    createdAt: { type: Date, default: Date.now },
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    tenant: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', required: true }
+});
+
+/**
+ * Create a new <model>.
+ * @param {Object} req - Request object
+ * @param {Object} <model>Data - <Model> data
+ * @param {boolean} allTenants
+ * @param {boolean} sanitize
+ * @param {boolean} lean
+ * @returns {Promise<Object>}
+ */
+export const create<Model> = async (req, <model>Data, allTenants = false, sanitize = true, lean = true) => {
+    checkUserTenantPermissions(req, allTenants, `${relativePath}: create<Model>()`);
+    <model>Data = setTenantForData(req, <model>Data, allTenants);
+    <model>Data = setAutoField(req, <model>Data, AutoField.CREATED_BY);
+    let new<Model> = await new <Model>({ ...<model>Data }).save();
+    if (lean) new<Model> = new<Model>.toObject();
+    if (sanitize) new<Model> = sanitizeObjectFields(new<Model>, protectedModelFields);
+    return new<Model>;
+};
+
+/**
+ * Find <models>.
+ * @param {Object} req
+ * @param {Object} params
+ * @param {boolean} allTenants
+ * @param {boolean} sanitize
+ * @param {boolean} lean
+ * @returns {Promise<Array>}
+ */
+export const find<Models> = async (req, params = {}, allTenants = false, sanitize = true, lean = true) => {
+    checkUserTenantPermissions(req, allTenants, `${relativePath}: find<Models>()`);
+    params.tenant = getTenantIdForQuery(req, params.tenant, allTenants);
+    let <models> = await <Model>.find(params).lean(lean).exec();
+    if (sanitize) <models> = <models>.map(item => sanitizeObjectFields(item, protectedModelFields));
+    return <models>;
+};
+
+/**
+ * Find <model> by ID.
+ * @param {Object} req
+ * @param {string} <model>Id
+ * @param {boolean} allTenants
+ * @param {boolean} sanitize
+ * @param {boolean} lean
+ * @returns {Promise<Object|null>}
+ */
+export const find<Model>ById = async (req, <model>Id, allTenants = false, sanitize = true, lean = true) => {
+    checkUserTenantPermissions(req, allTenants, `${relativePath}: find<Model>ById()`);
+    const tenantCondition = getTenantQueryCondition(req, req.user.tenant?.id, allTenants);
+    let <model> = await <Model>.findOne({ _id: <model>Id, ...tenantCondition }).lean(lean).exec();
+    if (sanitize) <model> = sanitizeObjectFields(<model>, protectedModelFields);
+    return <model>;
+};
+
+/**
+ * Update <model> by ID.
+ * @param {Object} req
+ * @param {string} <model>Id
+ * @param {Object} <model>Data
+ * @param {boolean} allTenants
+ * @param {boolean} sanitize
+ * @param {boolean} lean
+ * @returns {Promise<Object|null>}
+ */
+export const update<Model>ById = async (req, <model>Id, <model>Data, allTenants = false, sanitize = true, lean = true) => {
+    checkUserTenantPermissions(req, allTenants, `${relativePath}: update<Model>ById()`);
+    <model>Data = setAutoField(req, <model>Data, AutoField.UPDATED_BY);
+    const tenantCondition = getTenantQueryCondition(req, req.user.tenant?.id, allTenants);
+    let updated<Model> = await <Model>.findOneAndUpdate({ _id: <model>Id, ...tenantCondition }, <model>Data, { new: true }).lean(lean).exec();
+    if (sanitize) updated<Model> = sanitizeObjectFields(updated<Model>, protectedModelFields);
+    return updated<Model>;
+};
+
+/**
+ * Delete <model> by ID.
+ * @param {Object} req
+ * @param {string} <model>Id
+ * @param {boolean} allTenants
+ * @returns {Promise<Object|null>}
+ */
+export const delete<Model>ById = async (req, <model>Id, allTenants = false) => {
+    checkUserTenantPermissions(req, allTenants, `${relativePath}: delete<Model>ById()`);
+    const tenantCondition = getTenantQueryCondition(req, req.user.tenant?.id, allTenants);
+    return await <Model>.findOneAndDelete({ _id: <model>Id, ...tenantCondition });
+};
+
+<Model>Schema.pre('save', async function (next) {
+    this.updatedAt = new Date();
+    return next();
+});
+
+export const <Model> = mongoose.model('<Model>', <Model>Schema);
