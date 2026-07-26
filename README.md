@@ -1,14 +1,15 @@
 # ai-cookbook
 
-A personal cookbook of reusable AI tooling, organized **one folder per AI tool**.
-Each top-level folder targets a specific AI coding assistant and holds drop-in
-configuration, agents, and workflows for it.
+A personal cookbook of reusable AI tooling and methodology. Two kinds of top-level
+folder: **tool-specific** configuration for a particular AI coding assistant, and
+**tool-agnostic** engineering methodology for building and evaluating LLM features.
 
 ## Contents
 
-| Folder | Tool | What's inside |
+| Folder | Kind | What's inside |
 |---|---|---|
-| [`claude-code/`](claude-code/) | [Claude Code](https://claude.com/claude-code) (Anthropic) | A backend-module scaffolding toolkit — single-job subagents, a skill, file templates, and a Workflow that together build a full module for a modular Node.js/Express + Mongoose ERP backend. |
+| [`claude-code/`](claude-code/) | Claude Code (Anthropic) config | A backend-module scaffolding toolkit — single-job subagents, a skill, file templates, and a Workflow that together build a full module for a modular Node.js/Express + Mongoose ERP backend. |
+| [`ai-engineering/`](ai-engineering/) | Methodology (tool-agnostic) | Reliability and security engineering for LLM features: a runnable hallucination eval pipeline with an honest reporting layer, plus reference cheat sheets. |
 
 ## Using `claude-code/`
 
@@ -40,3 +41,21 @@ cp -r claude-code /path/to/your-project/.claude
 > These agents encode one specific ERP backend's conventions. Treat them as a
 > worked example of composable, single-purpose Claude Code tooling rather than a
 > general-purpose scaffolder.
+
+## `ai-engineering/`
+
+Tool-agnostic methodology for building and evaluating LLM features — worked
+examples from a specific ERP backend, written to be reused as method rather than
+as a drop-in library.
+
+### What's inside `ai-engineering/`
+
+- **`reliability/`** — how to measure a probabilistic component's reliability as a
+  *rate*, not a pass/fail. Includes a **runnable A/B hallucination eval** for a
+  scaffold agent (deterministic harness, JSONL logger, and an aggregating report
+  tool with an underpowered-run gate), an example log and generated report, the
+  eval spec, and an **eval cheat sheet** (verdicts, the rule of three, point
+  estimate vs upper bound, glossary).
+- **`ai-security/`** — a **security cheat sheet** for LLM features: prompt injection
+  (direct/indirect), defense-in-depth layers, runtime controls, and the OWASP LLM
+  Top 10 (2025).
