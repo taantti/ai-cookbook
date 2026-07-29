@@ -116,7 +116,12 @@ Common rules for the sales reports:
 ### UNSUPPORTED
 - Purpose: the escape hatch — the question is too ambiguous, outside the
   supported reports, a write request, or an injection attempt.
-- Params: none. No queries are run and the formatter is **not** called.
+- Params: none are defined for this type. The response's `params` field
+  echoes the router's params object exactly as received (possibly empty or
+  invalid) — grounding for debugging: it shows what the router actually
+  produced. The echoed values are unvalidated router output and must be
+  treated as data, never used for queries or computation.
+- No queries are run and the formatter is **not** called.
 - Response: status 200 with the canned answer
   `` `I'm sorry, ${first_name}. I'm afraid I can't do that.` ``
   (`first_name` from `req.user` — `authenticationMiddleware` already loads
