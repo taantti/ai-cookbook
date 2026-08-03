@@ -4,7 +4,7 @@
 // compares the produced file to the template, and results are logged as JSONL
 // for eval-report.js to aggregate.
 
-import { preFlight, resetWorkspace, runAgent, grade, normalize } from "../utils/evalHelpers.js";
+import { preFlight, resetWorkspace, runAgent, grade, normalize, getCliVersion, removeGhostTwin } from "../utils/evalHelpers.js";
 import { createEvalLogger } from "../utils/evalLogger.js";
 import fs from "node:fs";
 
@@ -19,8 +19,11 @@ const CASES = [
     { Model: "Zzyzx", model: "zzyzx", Models: "Zzyzxes", models: "zzyzxes", "model-kebab": "zzyzx" },
 ];
 
-const REPEATS_A = 15; // variant A (Rules block): 5 cases × 15 = 75 total → rule of three 3/75 = 5% upper bound
-const REPEATS_B = 8;  // variant B (no Rules):    5 cases × 8  = 40 total (baseline confirmation, not tightly bounded)
+// Repeats exceed the spec's minimum gradeable thresholds (A ≥ 60, B ≥ 30, enforced
+// by eval-report.js MIN_GRADEABLE) to leave headroom for ERROR exclusions; the
+// rule-of-three bound is computed from the actual gradeable count, not the total.
+const REPEATS_A = 15; // variant A (Rules block): 5 cases × 15 = 75 scheduled
+const REPEATS_B = 8;  // variant B (no Rules):    5 cases × 8  = 40 scheduled (baseline confirmation, not tightly bounded)
 const REPEATS_C = 1;  // debug: 5 cases × 1 = 5 total (cheap smoke)
 
 const MOCKDATADIR = "tests/setup/mockData";
@@ -39,7 +42,7 @@ const logger = createEvalLogger("eval-hallucination", { dir: ".claude/ai-enginee
  * Run one agent invocation for a case: reset workspace, run, grade, reset again.
  * @param {string} agentName
  * @param {object} caseModel - one CASES entry
- * @returns {{ gradeResult: "PASS"|"FAIL"|"ERROR", total_cost_usd: number, failContent: string|null }}
+ * @returns {{ gradeResult: "PASS"|"FAIL"|"ERROR", total_cost_usd: number, model: string|null, errorDetail: string|null, failContent: string|null }}
  */
 const runCase = (agentName, caseModel) => {
     const actualPath = `${MOCKDATADIR}/${caseModel.model}.js`;
@@ -48,23 +51,30 @@ const runCase = (agentName, caseModel) => {
     resetWorkspace(resetParams);
     if (fs.existsSync(actualPath)) throw new Error(`Reset failed: ${actualPath} still present after cleanup (node-side) — aborting to protect measurement validity.`);
 
+    // Ghost-twin guard (2026-08-03): a drive-root /tests/... twin left by an earlier
+    // rooted-path Write would make the agent's existence check stop the run.
+    const ghostCandidates = [actualPath, `${MOCKDATADIR}/index.js`];
+    for (const p of ghostCandidates) if (removeGhostTwin(p)) logger.note(`ghost twin removed before run: /${p}`);
+
     const result = runAgent(agentName, JSON.stringify(caseModel));
     const gradeResult = grade(result, TEMPLATE, actualPath);
     const failContent = gradeResult === "FAIL" ? fs.readFileSync(actualPath, "utf8") : null; // capture BEFORE reset deletes it
+    for (const p of ghostCandidates) if (removeGhostTwin(p)) logger.note(`ghost twin removed after run (agent wrote a drive-root path): /${p}`);
     resetWorkspace(resetParams);
 
-    const total_cost_usd = result.status === "ok" ? JSON.parse(result.raw).total_cost_usd : 0;
+    const parsed = result.status === "ok" ? JSON.parse(result.raw) : null;
+    const total_cost_usd = parsed?.total_cost_usd ?? 0;
+    const model = parsed?.modelUsage ? Object.keys(parsed.modelUsage).join(",") : null;
 
+    let errorDetail = null;
     if (gradeResult === "ERROR") {
-        if (result.status === "error") {
-            console.error("  runAgent error:", result.message);
-        } else {
-            const parsed = JSON.parse(result.raw);
-            console.error("  ok but no file. permission_denials:", JSON.stringify(parsed.permission_denials), "| report:", parsed.result);
-        }
+        errorDetail = result.status === "error"
+            ? `runAgent error: ${result.message}`
+            : `ok but no file. permission_denials: ${JSON.stringify(parsed.permission_denials)} | report: ${parsed.result}`;
+        console.error("  " + errorDetail);
     }
 
-    return { gradeResult, total_cost_usd, failContent };
+    return { gradeResult, total_cost_usd, model, errorDetail, failContent };
 };
 
 /**
@@ -72,15 +82,16 @@ const runCase = (agentName, caseModel) => {
  * @param {string} agentName
  * @param {object} caseModel
  * @param {number} [maxAttempts=5]
- * @returns {{ gradeResult: string, total_cost_usd: number, failContent: string|null, attempts: number }}
+ * @returns {{ gradeResult: string, total_cost_usd: number, model: string|null, errorDetail: string|null, failContent: string|null, attempts: number }}
  */
 const runCaseWithRetry = (agentName, caseModel, maxAttempts = 5) => {
+    let outcome;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-        const outcome = runCase(agentName, caseModel);
+        outcome = runCase(agentName, caseModel);
         if (outcome.gradeResult !== "ERROR") return { ...outcome, attempts: attempt };
         console.error(`  ${caseModel.model} attempt ${attempt} → ERROR, retrying...`);
     }
-    return { gradeResult: "ERROR", total_cost_usd: 0, attempts: maxAttempts };
+    return { ...outcome, attempts: maxAttempts }; // exhausted: keep the last attempt's errorDetail/cost
 };
 
 /**
@@ -104,16 +115,17 @@ const assertVariantsInSync = () => {
 try {
     preFlight([MOCKDATADIR]);
     assertVariantsInSync();
+    logger.note("meta", { cliVersion: getCliVersion() });
 
     for (const variant of VARIANTS) {
         for (const caseModel of CASES) {
             const results = [];
             for (let i = 0; i < variant.repeats; i++) {
-                const { gradeResult, total_cost_usd, failContent, attempts } = runCaseWithRetry(variant.agent, caseModel);
+                const { gradeResult, total_cost_usd, model, errorDetail, failContent, attempts } = runCaseWithRetry(variant.agent, caseModel);
                 logger.run({
                     variant: variant.label, agent: variant.agent, input: caseModel.model,
                     label: `${caseModel.model} #${i + 1}`, verdict: gradeResult,
-                    cost: total_cost_usd, attempts, failContent,
+                    cost: total_cost_usd, attempts, model, errorDetail, failContent,
                 });
                 results.push({ variant: variant.label, model: caseModel.model, gradeResult, total_cost_usd, failContent });
                 if (gradeResult === "FAIL") console.log("  FAIL content ↓\n" + failContent + "\n  ─── end ───");

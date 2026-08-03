@@ -9,6 +9,7 @@ export const ALLOWED_COMMANDS = [
     "git status --porcelain",
     "git checkout --",
     "claude --agent",
+    "claude --version",
 ];
 
 // --- Command gateway ---
@@ -73,10 +74,36 @@ export const resetWorkspace = (params) => {
     params.reset.forEach(filePath => resetFile(filePath));
 };
 
+/**
+ * Report the installed Claude CLI version (for run-metadata logging).
+ * @returns {string} e.g. "2.1.216 (Claude Code)"
+ */
+export const getCliVersion = () => runExecSyncCommand("claude --version").trim();
+
+/**
+ * Detect and remove a "ghost twin" of a repo-relative path at the filesystem
+ * root (on Windows: the current drive's root, e.g. C:\tests\...). Agents
+ * occasionally emit POSIX-rooted paths like /tests/...; a Write through such a
+ * path creates a stale file that poisons later runs — the agent's existence
+ * check finds it and stops, producing systematic ERRORs.
+ * @param {string} relPath - repo-relative path, e.g. "tests/setup/mockData/foo.js"
+ * @returns {boolean} true if a ghost existed (it has been removed)
+ */
+export const removeGhostTwin = (relPath) => {
+    const ghost = "/" + relPath;
+    if (!fs.existsSync(ghost)) return false;
+    fs.rmSync(ghost, { force: true });
+    return true;
+};
+
 // --- Agent invocation ---
 
 /**
  * Run a Claude Code agent headlessly and capture the result.
+ * Write/Edit are path-scoped to the mock-data dir (hardening, 2026-08-03):
+ * the model occasionally emits POSIX-rooted paths (/tests/...), which Windows
+ * resolves to the drive root — an unscoped Write then lands outside the repo
+ * unnoticed. Scoped rules turn those into logged permission_denials instead.
  * @param {string} agentName - agent to run (--agent)
  * @param {string} inputJson - the -p prompt (a JSON string)
  * @returns {{ status: "ok", raw: string } | { status: "error", message: string }}
@@ -84,7 +111,8 @@ export const resetWorkspace = (params) => {
  */
 export const runAgent = (agentName, inputJson) => {
     const cmd = `claude --agent ${agentName} -p '${inputJson}' ` +
-        `--permission-mode dontAsk --allowedTools "Read,Write,Edit" ` +
+        `--permission-mode dontAsk ` +
+        `--allowedTools "Read,Write(tests/setup/mockData/**),Edit(tests/setup/mockData/**)" ` +
         `--max-turns 25 --output-format json`;
     try {
         const raw = runExecSyncCommand(cmd);

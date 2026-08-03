@@ -85,21 +85,32 @@ uncommitted work it would destroy.
 
 1. **Reset workspace:** delete `tests/setup/mockData/<model>.js` if present;
    `git checkout -- tests/setup/mockData/index.js`. (The only two files the
-   agent writes; resetting re-arms the agent's idempotency guard.)
+   agent writes; resetting re-arms the agent's idempotency guard.) Then the
+   **ghost-twin guard** (added 2026-08-03): remove any drive-root twin of the
+   target paths (`/tests/setup/mockData/...`, i.e. `C:\tests\...` on Windows)
+   before and after the run, logging a note when one is found. Rationale: the
+   model occasionally emits POSIX-rooted paths; a Write through one creates a
+   stale file at the drive root that later runs "find" via the same rooted
+   path, tripping the agent's existence check into a systematic false STOP
+   (this caused every ERROR in the 2026-07-26 run — see the report's notes).
 2. **Invoke:**
 
    ```sh
    claude --agent <api-create-mock-data | api-create-mock-data-norules> \
      -p '<case variants JSON>' \
      --permission-mode dontAsk \
-     --allowedTools "Read,Write,Edit" \
+     --allowedTools "Read,Write(tests/setup/mockData/**),Edit(tests/setup/mockData/**)" \
      --max-turns 25 \
      --output-format json
    ```
 
    `--allowedTools` pre-approves the agent's own tool grants so nothing
-   prompts; `dontAsk` auto-denies anything else instead of hanging;
-   `--max-turns` is a runaway backstop; JSON output yields per-run cost.
+   prompts — with Write/Edit **path-scoped** to the mock-data dir (hardening,
+   2026-08-03) so a rooted-path write is denied and surfaces in the CLI JSON's
+   `permission_denials` instead of landing outside the repo unnoticed;
+   `dontAsk` auto-denies anything else instead of hanging; `--max-turns` is a
+   runaway backstop; JSON output yields per-run cost. (The authoritative
+   2026-07-26 run used unscoped `"Read,Write,Edit"` and no ghost guard.)
 3. **Collect before cleanup:** the produced `tests/setup/mockData/<model>.js`,
    the modified `tests/setup/mockData/index.js`, the CLI JSON (result text,
    cost), and the exit code. Grade immediately, then loop.
@@ -125,8 +136,10 @@ else.
 **Per-run verdict (three-valued):**
 - `ERROR` — the run did not produce `<model>.js` at all (CLI error, refusal,
   guard misfire). Counted and reported separately; **not** a hallucination.
-- `FAIL` — produced files differ from reference after normalization. The
-  unified diff is saved to the report.
+- `FAIL` — produced files differ from reference after normalization. The full
+  produced `<model>.js` content is captured into the log for the report
+  appendix (the expected reference is the short constant template, so the full
+  output is more readable than a diff against it).
 - `PASS` — both files match their references after normalization.
 
 Metric: `hallucination rate = FAIL / (PASS + FAIL)` per variant (ERRORs
@@ -134,26 +147,49 @@ excluded from the denominator, reported alongside).
 
 ## N and the claim it buys
 
-- **A (Rules block): N = 60** (5 cases × 12 repeats). If 0 FAILs are
-  observed, rule of three gives a 95% upper bound of 3/60 = **5%** — the
-  claim becomes "true rate below 5%".
-- **B (no Rules): N = 30** (5 cases × 6 repeats). B exists to confirm the
-  baseline is real and large, not to bound it tightly; at a true ~33% rate,
-  30 runs yield ~10 expected FAILs — unambiguous.
+The N figures are **minimum gradeable counts** (PASS+FAIL, after ERROR
+exclusion), enforced by `eval-report.js` (`MIN_GRADEABLE`): a report whose
+gradeable count falls below them is shown but not saved.
+
+- **A (Rules block): ≥ 60 gradeable.** If 0 FAILs are observed, rule of three
+  gives a 95% upper bound of 3/gradeable — at most 3/60 = **5%**; more
+  gradeable runs tighten it.
+- **B (no Rules): ≥ 30 gradeable.** B exists to confirm the baseline is real
+  and large, not to bound it tightly; at a true ~33% rate, 30 runs yield ~10
+  expected FAILs — unambiguous.
+
+Because ERRORs are excluded from the denominator, the runner schedules more
+repeats than the minimums require: **15 repeats × 5 cases = 75 for A** and
+**8 × 5 = 40 for B** (`REPEATS_A`/`REPEATS_B`), leaving headroom so the
+gradeable counts stay above 60/30 even when a case throws ERRORs. The
+authoritative run (2026-07-26) landed at 70 gradeable for A (5 ERROR) and 35
+for B (5 ERROR), so its reported bound is 3/70 ≈ **4.3%**.
+
 - Total cost is summed from the CLI JSON and printed in the report.
 
 ## Report format
 
 Written to `report/mock-data/eval-hallucination.md` (mirroring the log structure):
 
-1. Metadata: date, `claude --version`, model id from CLI JSON, N per variant,
+1. Metadata: date, `claude --version` (logged as a `meta` note at run start),
+   model id (from the CLI JSON's `modelUsage`, logged per run), N per variant,
    total cost.
 2. Per-variant × per-case table: runs, PASS, FAIL, ERROR, observed rate
    (failures clustering on one name would be hidden by totals alone).
 3. Totals per variant: observed rate; for A additionally the rule-of-three
    95% upper bound.
 4. Conclusion in the form given in *Claim under test*.
-5. Appendix: every FAIL's diff (and every ERROR's CLI stderr/result text).
+5. Appendix: every FAIL's full produced output (the expected reference — the
+   template — appears once in the report), and every ERROR's CLI error /
+   result text (`errorDetail`, logged per ERROR run).
+6. Hand-maintained run notes: `eval-report.js` inlines an optional
+   `<evalName>.notes.md` kept next to the report, so regeneration preserves
+   run-specific commentary.
+
+**Metadata-logging deviation:** CLI-version, model-id, and ERROR-detail
+logging was added to the harness on 2026-08-03. The authoritative 2026-07-26
+run predates it: its log carries none of these fields, and its report states
+"not recorded" for them instead of guessing.
 
 ## Rejected alternatives
 

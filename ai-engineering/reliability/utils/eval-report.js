@@ -27,6 +27,19 @@ const getFiles = (dir, prefix = "", postfix = "log") =>
         .sort();
 
 /**
+ * Load and parse one specific log file (JSONL → records).
+ * @param {string} dir
+ * @param {string} file - log filename inside dir
+ * @returns {{ file: string, records: object[] }}
+ */
+export const loadLog = (dir, file) => {
+    const records = fs.readFileSync(`${dir}/${file}`, "utf8")
+        .trim().split("\n").filter(Boolean)
+        .map(line => JSON.parse(line));
+    return { file, records };
+};
+
+/**
  * Load and parse the latest matching log file (JSONL → records).
  * @param {string} dir
  * @param {string} [prefix=""] - eval-name prefix; distinguishes evals sharing one folder
@@ -37,10 +50,7 @@ const getFiles = (dir, prefix = "", postfix = "log") =>
 export const loadLatestLog = (dir, prefix = "", postfix = "log") => {
     const latest = getFiles(dir, prefix, postfix).at(-1);
     if (!latest) throw new Error(`No .${postfix} files matching "${prefix}" in ${dir}`);
-    const records = fs.readFileSync(`${dir}/${latest}`, "utf8")
-        .trim().split("\n").filter(Boolean)
-        .map(line => JSON.parse(line));
-    return { file: latest, records };
+    return loadLog(dir, latest);
 };
 
 // --- Aggregation & stats ---
@@ -142,7 +152,9 @@ const renderSummary = (agg) => {
 };
 
 /**
- * Render the report metadata header (source log, run count, cost, timestamp).
+ * Render the report metadata header (source log, model, CLI version, run count,
+ * cost, timestamp). Model comes from per-run `model` fields, CLI version from a
+ * "meta" log note; both render as "not recorded" for logs predating that logging.
  * @param {string} file
  * @param {object[]} records
  * @returns {string} markdown
@@ -150,10 +162,14 @@ const renderSummary = (agg) => {
 const renderMeta = (file, records) => {
     const runs = records.filter(r => r.type === "run");
     const cost = runs.reduce((sum, r) => sum + (r.cost || 0), 0);
+    const meta = records.find(r => r.type === "note" && r.msg === "meta");
+    const models = [...new Set(runs.map(r => r.model).filter(Boolean))];
     return [
         "# Eval report",
         "",
         `- Source log: \`${file}\``,
+        `- Model: ${models.length ? models.map(m => `\`${m}\``).join(", ") : "not recorded in this log"}`,
+        `- Claude CLI: ${meta?.cliVersion ?? "not recorded in this log"}`,
         `- Runs: ${runs.length}`,
         `- Notional cost: $${cost.toFixed(4)}`,
         `- Generated: ${new Date().toISOString()}`,
@@ -180,42 +196,90 @@ const renderConclusion = (agg) => {
 };
 
 /**
+ * Render the FAIL/ERROR appendices from run records.
+ * FAILs render their captured output (`failContent`); ERRORs render their CLI
+ * error / result text (`errorDetail`) or an explicit "not recorded" line for
+ * logs predating errorDetail logging. Returns "" when there is nothing to show.
+ * @param {object[]} records
+ * @returns {string} markdown
+ */
+const renderAppendix = (records) => {
+    const runs = records.filter(r => r.type === "run");
+    const sections = [];
+
+    const fails = runs.filter(r => r.verdict === "FAIL" && r.failContent);
+    if (fails.length) {
+        const blocks = fails.map(r =>
+            `### ${r.variant} · ${r.input} · ${r.ts}\n\n\`\`\`js\n${r.failContent.trimEnd()}\n\`\`\``);
+        sections.push("## Appendix: FAIL outputs\n\n" + blocks.join("\n\n"));
+    }
+
+    const errors = runs.filter(r => r.verdict === "ERROR");
+    if (errors.length) {
+        const blocks = errors.map(r =>
+            `### ${r.variant} · ${r.input} · ${r.ts} (attempts: ${r.attempts})\n\n` +
+            (r.errorDetail ? "```\n" + r.errorDetail.trim() + "\n```" : "_Error detail not recorded in this log._"));
+        sections.push("## Appendix: ERROR runs\n\n" + blocks.join("\n\n"));
+    }
+
+    return sections.join("\n\n");
+};
+
+/**
+ * Load the hand-maintained notes file for an eval, if present. Notes live next
+ * to the report as `<evalName>.notes.md` and are inlined into the generated
+ * report so regeneration never loses them.
+ * @param {string} reportDir
+ * @param {string} evalName
+ * @returns {string} notes markdown ("" when absent)
+ */
+const loadNotes = (reportDir, evalName) => {
+    const notesPath = `${reportDir}/${evalName}.notes.md`;
+    return fs.existsSync(notesPath) ? fs.readFileSync(notesPath, "utf8").trim() : "";
+};
+
+/**
  * Assemble the full markdown report.
  * @param {object} agg
  * @param {string} file - source log filename (for metadata)
- * @param {object[]} records - raw records (for metadata)
+ * @param {object[]} records - raw records (for metadata and appendices)
+ * @param {string} [notes=""] - hand-maintained notes markdown to inline
  * @returns {string} markdown
  */
-const renderReport = (agg, file, records) =>
-    [renderMeta(file, records), renderConclusion(agg), renderSummary(agg), renderTable(agg)]
+const renderReport = (agg, file, records, notes = "") =>
+    [renderMeta(file, records), renderConclusion(agg), renderSummary(agg), renderTable(agg), notes, renderAppendix(records)]
         .filter(Boolean)
         .join("\n\n");
 
 // --- CLI entry (runs only when executed directly, not when imported) ---
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-    const [agent, evalName] = process.argv.slice(2);
+    const [agent, evalName, logFile] = process.argv.slice(2);
     if (!agent || !evalName) {
-        console.error("Usage: node eval-report.js <agent> <evalName>");
+        console.error("Usage: node eval-report.js <agent> <evalName> [logFile]");
         console.error("  e.g.  node eval-report.js mock-data eval-hallucination");
+        console.error("  logFile: report a specific log instead of the latest one");
+        console.error("           (e.g. when the latest log is an investigation run, not the authoritative one)");
         process.exit(1);
     }
 
-    const { file, records } = loadLatestLog(`${LOG_BASE}/${agent}`, evalName);
+    const { file, records } = logFile
+        ? loadLog(`${LOG_BASE}/${agent}`, logFile)
+        : loadLatestLog(`${LOG_BASE}/${agent}`, evalName);
     const agg = aggregate(records);
     const target = getTarget(records);
     const underpowered = Object.keys(target).some(v =>
         ((agg[v]?.total.PASS ?? 0) + (agg[v]?.total.FAIL ?? 0)) < target[v]);
 
-    const report = renderReport(agg, file, records);
+    const reportDir = `${REPORT_BASE}/${agent}`;
+    const report = renderReport(agg, file, records, loadNotes(reportDir, evalName));
     console.log(report);   // always show
 
     if (underpowered) {
         console.warn("\n⚠ UNDERPOWERED — report NOT saved (gradeable < target). Test run?");
     } else {
-        const reportDir = `${REPORT_BASE}/${agent}`;
         fs.mkdirSync(reportDir, { recursive: true });
-        fs.writeFileSync(`${reportDir}/${evalName}.md`, report);
+        fs.writeFileSync(`${reportDir}/${evalName}.md`, report + "\n");
         console.log("\nSaved: " + `${reportDir}/${evalName}.md`);
     }
 }

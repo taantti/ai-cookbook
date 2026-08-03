@@ -32,12 +32,14 @@ export const createEvalLogger = (evalName, { dir = DEFAULT_DIR, echo = true } = 
          * @param {string}  r.verdict       - "PASS" | "FAIL" | "ERROR" (or any eval's verdicts)
          * @param {number} [r.cost]         - notional cost for the run
          * @param {number} [r.attempts]     - attempts taken (retries)
+         * @param {string} [r.model]        - model id(s) the CLI reported for the run
+         * @param {string} [r.errorDetail]  - CLI error / agent result text on ERROR (for the report appendix)
          * @param {string} [r.failContent]  - captured output on FAIL (for the report appendix)
          */
         run: ({ variant = null, agent = null, input = null, label = null,
-                verdict, cost = 0, attempts = 1, failContent = null }) => {
+                verdict, cost = 0, attempts = 1, model = null, errorDetail = null, failContent = null }) => {
             if (!verdict) throw new Error("logger.run: verdict is required");
-            write({ type: "run", ts: new Date().toISOString(), variant, agent, input, verdict, cost, attempts, failContent });
+            write({ type: "run", ts: new Date().toISOString(), variant, agent, input, verdict, cost, attempts, model, errorDetail, failContent });
             if (echo) console.log(`${[variant, label].filter(Boolean).join(" ")} → ${verdict}`);
         },
 
