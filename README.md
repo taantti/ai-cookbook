@@ -9,7 +9,7 @@ folder: **tool-specific** configuration for a particular AI coding assistant, an
 | Folder | Kind | What's inside |
 |---|---|---|
 | [`claude-code/`](claude-code/) | Claude Code (Anthropic) config | A backend-module scaffolding toolkit — single-job subagents, a skill, file templates, and a Workflow that together build a full module for a modular Node.js/Express + Mongoose ERP backend. |
-| [`ai-engineering/`](ai-engineering/) | Methodology (tool-agnostic) | Reliability and security engineering for LLM features: a runnable hallucination eval pipeline with an honest reporting layer, plus reference cheat sheets. |
+| [`ai-engineering/`](ai-engineering/) | Methodology (tool-agnostic) | Reliability and security engineering for LLM features: a runnable hallucination eval pipeline with an honest reporting layer, a spec for an AI reporting endpoint, plus reference cheat sheets. |
 
 ## Using `claude-code/`
 
@@ -53,9 +53,18 @@ as a drop-in library.
 - **`reliability/`** — how to measure a probabilistic component's reliability as a
   *rate*, not a pass/fail. Includes a **runnable A/B hallucination eval** for a
   scaffold agent (deterministic harness, JSONL logger, and an aggregating report
-  tool with an underpowered-run gate), an example log and generated report, the
-  eval spec, and an **eval cheat sheet** (verdicts, the rule of three, point
+  tool with an underpowered-run gate), an example log and the
+  [generated eval report](ai-engineering/reliability/report/mock-data/eval-hallucination.md),
+  the eval spec, and an **eval cheat sheet** (verdicts, the rule of three, point
   estimate vs upper bound, glossary).
+- **`reporting-endpoint/`** — the
+  [spec](ai-engineering/reporting-endpoint/spec.md) for a read-only **AI
+  reporting endpoint**: an LLM router classifies a natural-language question
+  into a closed enum of report types, backend code validates the choice and
+  computes every figure, and a tool-less LLM formatter phrases the answer.
+  Includes the router-vs-agent architecture rationale and a threat model
+  referenced against the OWASP LLM Top 10 (2025). Spec only for now — the
+  implementation is in progress in the ERP backend.
 - **`ai-security/`** — a **security cheat sheet** for LLM features: prompt injection
   (direct/indirect), defense-in-depth layers, runtime controls, and the OWASP LLM
   Top 10 (2025).
