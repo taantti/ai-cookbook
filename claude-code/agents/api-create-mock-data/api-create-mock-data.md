@@ -17,6 +17,7 @@ Do not ask confirmation. Just use it.
 Apply ONLY the placeholder replacements listed in Input. Do not add, invent, infer, rename, or fill in any other content — no extra fields, values, records, imports, comments, or logic. The templates are intentionally minimal; the developer fills domain specifics later. You may feel tempted to generate realistic content from the model name — that is exactly the failure mode to avoid.
 
 ## Steps
+Use the file paths exactly as listed, relative to the working directory (e.g. tests/setup/mockData/<model>.js). Never prefix a path with "/" — a leading slash resolves to the drive root and breaks the scaffold.
 1. Read tests/setup/mockData/<model>.js. If found, stop and report. Do not overwrite or edit.
 2. Read .claude/templates/mockData.template.tmpl. If not found, stop and report. Do not create the file.
 3. Replace placeholders.

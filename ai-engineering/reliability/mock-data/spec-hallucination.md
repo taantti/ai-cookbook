@@ -4,7 +4,8 @@
 
 ## Claim under test
 
-> The `## Rules` (no-invent) block in `.claude/agents/api-create-mock-data.md`
+> The `## Rules` (no-invent) block in
+> `.claude/agents/api-create-mock-data/api-create-mock-data.md`
 > reduces the agent's hallucination rate from a measured baseline of roughly
 > 1/3 of runs to a level indistinguishable from zero.
 
@@ -19,7 +20,8 @@ extra fields, values, records, imports, comments, or logic.
 
 ## Component under test
 
-The agent file `.claude/agents/api-create-mock-data.md`, **run as-is** via
+The agent file `.claude/agents/api-create-mock-data/api-create-mock-data.md`,
+**run as-is** via
 `claude --agent api-create-mock-data -p` so the whole artifact is exercised:
 frontmatter (`model: haiku`, `tools: Read, Write, Edit`) and prompt. No
 prompt reconstruction.
@@ -115,8 +117,9 @@ uncommitted work it would destroy.
    the modified `tests/setup/mockData/index.js`, the CLI JSON (result text,
    cost), and the exit code. Grade immediately, then loop.
 
-Teardown (`finally`): reset workspace once more; delete the B variant agent
-file.
+Teardown: each iteration's trailing reset leaves the workspace clean; there is
+no separate teardown step. The B variant is a permanent file (see *A/B setup*)
+and is never deleted.
 
 ## Grader
 
