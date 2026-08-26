@@ -21,7 +21,9 @@ measures two variables at once and the eval result is invalid.
 1. Make your change in `api-create-mock-data.md`.
 2. Copy the whole file over `api-create-mock-data.norules.md`; in the copy,
    restore its `name:`/`description:` frontmatter, then **delete the entire
-   `## Rules` section** (heading + paragraph).
+   `## Rules` section** — heading, paragraph, **and one of the two
+   surrounding blank lines**, so a single blank line remains before
+   `## Steps` (a leftover double blank line trips the drift guard).
 3. Copy the whole file over `api-create-mock-data.old-rules.md`; in the copy,
    restore its `name:`/`description:` frontmatter, then **delete the single
    path-rule line** (the `Use the file paths exactly as listed…` line right
@@ -43,6 +45,10 @@ a measurement:
 - Rooted-paths eval (`.claude/ai-engineering/reliability/mock-data/eval-rooted-paths.js`):
   strips the path-rule line from the real agent and asserts the remainder is
   identical to `old-rules`.
+
+Both guards first drop the `---` frontmatter and normalize line endings and
+trailing whitespace before comparing — the frontmatter legitimately differs
+(`name:`/`description:`), so a whole-file byte comparison would always fail.
 
 The path-rule line is kept on **one physical line** on purpose: it makes the
 rooted-paths drift guard a trivial single-line removal instead of a fragile

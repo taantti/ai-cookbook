@@ -25,7 +25,8 @@ Every agent here follows the same recipe:
   substitutions and never invent domain content (fields, values, sample
   records). Without it a weak model will "helpfully" generate realistic data
   from the model name instead of leaving the template's placeholders for the
-  developer — measured at ~1/3 of runs before the rule; with it, 0 observed
+  developer — informally observed in ~1/3 of runs before the rule; the eval
+  then measured 8/35 = 22.9% without it, and with it 0 observed
   hallucinations in 70 gradeable runs (95% upper bound 4.3% — see the
   reliability eval report). The
   single-line `Edit`-insert agents (`api-create-app-mount`,
