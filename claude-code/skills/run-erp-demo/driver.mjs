@@ -7,7 +7,7 @@
  *
  * There is no external Mongo and no .env needed: this owns the whole lifecycle.
  *
- * Usage (from the unit root, c:\Muuta\erp-demo):
+ * Usage (from the unit root, i.e. the erp-demo repo root):
  *   node .claude/skills/run-erp-demo/driver.mjs           # full smoke, exits 0/1
  *   node .claude/skills/run-erp-demo/driver.mjs --serve   # seed + serve, stay up
  *

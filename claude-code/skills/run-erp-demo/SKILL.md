@@ -12,7 +12,7 @@ spins up an in-memory MongoDB **replica set** (via the already-installed
 launches the **actual** `src/server.js` against that DB and exercises it over
 HTTP with `fetch`.
 
-**All paths below are relative to the unit root (`c:\Muuta\erp-demo`).** The
+**All paths below are relative to the unit root (the `erp-demo` repo root).** The
 driver lives at [.claude/skills/run-erp-demo/driver.mjs](driver.mjs).
 
 ## Prerequisites
