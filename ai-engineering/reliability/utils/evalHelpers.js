@@ -1,5 +1,7 @@
 import { execSync } from "node:child_process";
 import fs from "node:fs";
+import path from "node:path"
+import { homedir } from "node:os";
 
 /**
  * Command prefixes the harness is allowed to run through runExecSyncCommand.
@@ -106,20 +108,41 @@ export const removeGhostTwin = (relPath) => {
  * unnoticed. Scoped rules turn those into logged permission_denials instead.
  * @param {string} agentName - agent to run (--agent)
  * @param {string} inputJson - the -p prompt (a JSON string)
+ * @param {string|null} [sessionId=null] - if given, passed as --session-id so the run's transcript lands at a known path
  * @returns {{ status: "ok", raw: string } | { status: "error", message: string }}
  *   ok: raw is the CLI's JSON output; error: the run failed (message is why)
  */
-export const runAgent = (agentName, inputJson) => {
+export const runAgent = (agentName, inputJson, sessionId = null) => {
     const cmd = `claude --agent ${agentName} -p '${inputJson}' ` +
         `--permission-mode dontAsk ` +
         `--allowedTools "Read,Write(tests/setup/mockData/**),Edit(tests/setup/mockData/**)" ` +
-        `--max-turns 25 --output-format json`;
+        `--max-turns 25 --output-format json` +
+        (sessionId ? ` --session-id ${sessionId}` : "");
     try {
         const raw = runExecSyncCommand(cmd);
         return { status: "ok", raw };
     } catch (error) {
         return { status: "error", message: error.message };
     }
+};
+
+// --- Transcript ---
+
+/**
+ * Find transcript with session id
+ * @param {string} sessionId 
+ * @returns {string|null} Transcript path or null if not found
+ */
+export const findTranscript = (sessionId) => {
+    const root = path.join(homedir(), ".claude", "projects");
+    const dirObjects = fs.readdirSync(root);
+
+    for (const dirObject of dirObjects) {
+        const dirObjectPath = path.join(root, dirObject, sessionId + ".jsonl");
+        if (fs.existsSync(dirObjectPath)) return dirObjectPath;
+    }
+
+    return null;
 };
 
 // --- Grading ---
@@ -135,7 +158,7 @@ export const normalize = (text) =>
         .replace(/\r\n/g, "\n")
         .replace(/[ \t]+$/gm, "")
         .replace(/\s+$/, "")
-        + "\n";
+    + "\n";
 
 /**
  * Grade one agent run against the expected output.

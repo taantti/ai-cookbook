@@ -1,6 +1,6 @@
 ---
-name: api-create-mock-data-old-rules
-description: EVAL-ONLY baseline snapshot without the path rule. Do not use for real scaffolding. Used only by the rooted-paths eval.
+name: api-create-mock-data-nopaths
+description: EVAL-ONLY variant of api-create-mock-data with the ## Paths section removed. Do not use for real scaffolding. Used only by the rooted-paths eval.
 tools: Read, Write, Edit
 model: haiku
 ---
