@@ -131,9 +131,10 @@ export const runAgent = (agentName, inputJson, sessionId = null) => {
 /**
  * Find transcript with session id
  * @param {string} sessionId 
- * @returns {string|null} Transcript path or null if not found
+ * @returns {string|null} Transcript path or null if not found or sessionId missing
  */
 export const findTranscript = (sessionId) => {
+    if (!sessionId) return null;
     const root = path.join(homedir(), ".claude", "projects");
     const dirObjects = fs.readdirSync(root);
 
@@ -144,6 +145,82 @@ export const findTranscript = (sessionId) => {
 
     return null;
 };
+
+/**
+ * Load and parse one specific log file (JSONL → data).
+ * @param {string} filePath
+ * @returns {{ data: object[] }}
+ */
+export const readJsonl = (filePath) => {
+    const data = fs.readFileSync(filePath, "utf8")
+        .trim().split("\n").filter(Boolean)
+        .map(line => JSON.parse(line));
+    return data;
+};
+/** 
+ * @param {object} line - content of single line
+ * @param {string} eventType
+ * @param {string} blockType
+ * @returns {object[]} matching line blocks
+ */
+const lineContentBlocks = (line, eventType, blockType) => {
+    const lineBlocks = [];
+    if (line.type !== eventType) return [];
+    const lineContent = line.message?.content;
+    if (!Array.isArray(lineContent)) return [];
+    for (const lineBlock of lineContent) {
+        if (lineBlock.type !== blockType) continue;
+        lineBlocks.push(lineBlock);
+    }
+    return lineBlocks;
+
+}
+
+/**
+ * Select content blocks of one type from transcript events of one type.
+ * @param {object[]} data - one object per transcript line
+ * @param {string} [eventType="assistant"]
+ * @param {string} [blockType="tool_use"]
+ * @returns {object[]} matching blocks, in transcript order
+ */
+export const filterContentBlocks = (data, eventType = "assistant", blockType = "tool_use") => {
+    const blocks = [];
+    switch (eventType) {
+        case "assistant":
+        case "user": {
+            for (const line of data) {
+                const lineBlocks = lineContentBlocks(line, eventType, blockType);
+                blocks.push(...lineBlocks);
+            }
+            break;
+        }
+        default: break;
+    }
+    return blocks;
+}
+
+export const toolUseFilePaths = (events) => {
+
+}
+
+/**
+ * 
+ * @param {string} transcriptPath
+ */
+export const getTranscriptFilePathsData = (transcriptPath) => {
+    if (!transcriptPath) return null;
+
+    const transcript = readJsonl(transcriptPath);
+    if (!transcript) return null;
+
+
+
+
+
+
+
+
+}
 
 // --- Grading ---
 
