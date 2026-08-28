@@ -149,7 +149,7 @@ export const findTranscript = (sessionId) => {
 /**
  * Load and parse one specific log file (JSONL → data).
  * @param {string} filePath
- * @returns {{ data: object[] }}
+ * @returns {{ object[] }}
  */
 export const readJsonl = (filePath) => {
     const data = fs.readFileSync(filePath, "utf8")
@@ -174,7 +174,7 @@ const lineContentBlocks = (line, eventType, blockType) => {
     }
     return lineBlocks;
 
-}
+};
 
 /**
  * Select content blocks of one type from transcript events of one type.
@@ -197,11 +197,28 @@ export const filterContentBlocks = (data, eventType = "assistant", blockType = "
         default: break;
     }
     return blocks;
-}
+};
 
-export const toolUseFilePaths = (events) => {
+/**
+ * Collect one input value from every content block that matches the given
+ * block type and tool name. Blocks whose input lacks the key, or whose value
+ * is not a string, are skipped.
+ * @param {object[]} blocks - content blocks
+ * @param {string} [blockType="tool_use"] - block type to accept
+ * @param {string[]} [blockNames=["Read","Write","Edit"]] - tool names to accept
+ * @param {string} [blockInputKey="file_path"] - key to read from block.input
+ * @returns {string[]} the values, in block order
+ */
+export const blockInputValues = (blocks, blockType = "tool_use", blockNames = ["Read", "Write", "Edit"], blockInputKey = "file_path") => {
+    const values = [];
+    for (const block of blocks) {
+        if (block.type !== blockType || !blockNames.includes(block.name)) continue;
+        if (typeof block.input?.[blockInputKey] !== "string") continue;
+        values.push(block.input[blockInputKey]);
+    }
+    return values;
 
-}
+};
 
 /**
  * 
@@ -220,7 +237,7 @@ export const getTranscriptFilePathsData = (transcriptPath) => {
 
 
 
-}
+};
 
 // --- Grading ---
 
