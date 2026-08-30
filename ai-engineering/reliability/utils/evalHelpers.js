@@ -98,6 +98,23 @@ export const removeGhostTwin = (relPath) => {
     return true;
 };
 
+// --- Paths ---
+
+/**
+ * True when a path matches any rooted-path condition: at a given position
+ * the path starts with one of the listed prefixes. Defaults: "/" or "\"
+ * at 0, ":" at 1 (drive letter).
+ * @param {string} filePath - the path as written in a tool call
+ * @param {Object<string, string[]>} [rootedPathConditions] - position → accepted prefixes
+ * @returns {boolean}
+ */
+export const isRootedPath = (filePath, rootedPathConditions = { 0: ["/", "\\"], 1: [":"] }) => {
+    for (const [position, prefixes] of Object.entries(rootedPathConditions)) {
+        if (prefixes.some(prefix => filePath.startsWith(prefix, Number(position)))) return true;
+    }
+    return false;
+};
+
 // --- Agent invocation ---
 
 /**
@@ -221,22 +238,32 @@ export const blockInputValues = (blocks, blockType = "tool_use", blockNames = ["
 };
 
 /**
- * 
- * @param {string} transcriptPath
+ * Read a JSONL transcript and return input values of the blocks that match:
+ * events of eventType, blocks of blockType whose name is in blockNames,
+ * value read from block.input[blockInputKey] (strings only).
+ * @param {string|null} transcriptPath - empty or missing path returns []
+ * @param {object} [options]
+ * @param {string} [options.eventType="assistant"] - event type to look in
+ * @param {string} [options.blockType="tool_use"] - block type to accept
+ * @param {string[]} [options.blockNames=["Read","Write","Edit"]] - block names to accept
+ * @param {string} [options.blockInputKey="file_path"] - key read from block.input
+ * @returns {string[]} the values, in transcript order
  */
-export const getTranscriptFilePathsData = (transcriptPath) => {
-    if (!transcriptPath) return null;
+export const transcriptInputValues = (
+    transcriptPath,
+    {
+        eventType = "assistant",
+        blockType = "tool_use",
+        blockNames = ["Read", "Write", "Edit"],
+        blockInputKey = "file_path"
+    } = {}
+) => {
+    if (!transcriptPath) return [];
 
     const transcript = readJsonl(transcriptPath);
-    if (!transcript) return null;
 
-
-
-
-
-
-
-
+    const blocks = filterContentBlocks(transcript, eventType, blockType);
+    return blockInputValues(blocks, blockType, blockNames, blockInputKey);
 };
 
 // --- Grading ---
