@@ -35,11 +35,12 @@ export const createEvalLogger = (evalName, { dir = DEFAULT_DIR, echo = true } = 
          * @param {string} [r.model]        - model id(s) the CLI reported for the run
          * @param {string} [r.errorDetail]  - CLI error / agent result text on ERROR (for the report appendix)
          * @param {string} [r.failContent]  - captured output on FAIL (for the report appendix)
+         * @param {object} [r.extra]        - free-form per-run observations, logged verbatim
          */
         run: ({ variant = null, agent = null, input = null, label = null,
-                verdict, cost = 0, attempts = 1, model = null, errorDetail = null, failContent = null }) => {
+                verdict, cost = 0, attempts = 1, model = null, errorDetail = null, failContent = null, extra = null }) => {
             if (!verdict) throw new Error("logger.run: verdict is required");
-            write({ type: "run", ts: new Date().toISOString(), variant, agent, input, verdict, cost, attempts, model, errorDetail, failContent });
+            write({ type: "run", ts: new Date().toISOString(), variant, agent, input, verdict, cost, attempts, model, errorDetail, failContent, extra });
             if (echo) console.log(`${[variant, label].filter(Boolean).join(" ")} → ${verdict}`);
         },
 

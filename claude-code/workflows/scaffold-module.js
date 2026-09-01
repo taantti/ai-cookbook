@@ -29,8 +29,11 @@ const variants = await agent(`${args}`, {
   schema: VARIANTS_SCHEMA,
   label: 'derive-variants',
 })
+
 const input = JSON.stringify(variants) // the one JSON every scaffold agent consumes
 log(`Variants: ${input}`)
+
+if(!variants) return false;
 
 // Phase 2 — all 12 scaffold agents in parallel. Each writes a disjoint set of files and
 // none reads another's output, so this is safe with no worktree isolation.

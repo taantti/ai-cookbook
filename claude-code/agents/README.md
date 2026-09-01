@@ -25,7 +25,10 @@ Every agent here follows the same recipe:
   substitutions and never invent domain content (fields, values, sample
   records). Without it a weak model will "helpfully" generate realistic data
   from the model name instead of leaving the template's placeholders for the
-  developer — measured at ~1/3 of runs before the rule, 0 after. The
+  developer — informally observed in ~1/3 of runs before the rule; the eval
+  then measured 8/35 = 22.9% without it, and with it 0 observed
+  hallucinations in 70 gradeable runs (95% upper bound 4.3% — see the
+  reliability eval report). The
   single-line `Edit`-insert agents (`api-create-app-mount`,
   `api-create-rolepermission-entry`) skip the block — one line at a marker has
   almost no invention surface — but `api-create-mock-factory-fn` and
@@ -479,9 +482,10 @@ module one layer at a time, following the project's
 
 Notes:
 
-- **Chaining is a later, explicit opt-in.** Wiring these phases into a single
-  automated workflow has a real token cost, so it is not enabled by default —
-  it is turned on deliberately.
+- **The chain is implemented as a deterministic workflow** —
+  `.claude/workflows/scaffold-module.js` runs variants (schema-validated, with a
+  null guard) → all 12 scaffold agents in parallel (disjoint writes) → 3 verify
+  agents in parallel. Running it stays an explicit opt-in (real token cost).
 - **A scaffolded route is not reachable until mounted and permitted.**
   `api-create-module-route` creates and registers the route file and
   `api-create-app-mount` mounts it in `app.js`, but the endpoint still returns

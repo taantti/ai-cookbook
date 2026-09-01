@@ -1,5 +1,7 @@
 import { execSync } from "node:child_process";
 import fs from "node:fs";
+import path from "node:path"
+import { homedir } from "node:os";
 
 /**
  * Command prefixes the harness is allowed to run through runExecSyncCommand.
@@ -96,6 +98,23 @@ export const removeGhostTwin = (relPath) => {
     return true;
 };
 
+// --- Paths ---
+
+/**
+ * True when a path matches any rooted-path condition: at a given position
+ * the path starts with one of the listed prefixes. Defaults: "/" or "\"
+ * at 0, ":" at 1 (drive letter).
+ * @param {string} filePath - the path as written in a tool call
+ * @param {Object<string, string[]>} [rootedPathConditions] - position → accepted prefixes
+ * @returns {boolean}
+ */
+export const isRootedPath = (filePath, rootedPathConditions = { 0: ["/", "\\"], 1: [":"] }) => {
+    for (const [position, prefixes] of Object.entries(rootedPathConditions)) {
+        if (prefixes.some(prefix => filePath.startsWith(prefix, Number(position)))) return true;
+    }
+    return false;
+};
+
 // --- Agent invocation ---
 
 /**
@@ -106,20 +125,145 @@ export const removeGhostTwin = (relPath) => {
  * unnoticed. Scoped rules turn those into logged permission_denials instead.
  * @param {string} agentName - agent to run (--agent)
  * @param {string} inputJson - the -p prompt (a JSON string)
+ * @param {string|null} [sessionId=null] - if given, passed as --session-id so the run's transcript lands at a known path
  * @returns {{ status: "ok", raw: string } | { status: "error", message: string }}
  *   ok: raw is the CLI's JSON output; error: the run failed (message is why)
  */
-export const runAgent = (agentName, inputJson) => {
+export const runAgent = (agentName, inputJson, sessionId = null) => {
     const cmd = `claude --agent ${agentName} -p '${inputJson}' ` +
         `--permission-mode dontAsk ` +
         `--allowedTools "Read,Write(tests/setup/mockData/**),Edit(tests/setup/mockData/**)" ` +
-        `--max-turns 25 --output-format json`;
+        `--max-turns 25 --output-format json` +
+        (sessionId ? ` --session-id ${sessionId}` : "");
     try {
         const raw = runExecSyncCommand(cmd);
         return { status: "ok", raw };
     } catch (error) {
         return { status: "error", message: error.message };
     }
+};
+
+// --- Transcript ---
+
+/**
+ * Find transcript with session id
+ * @param {string} sessionId 
+ * @returns {string|null} Transcript path or null if not found or sessionId missing
+ */
+export const findTranscript = (sessionId) => {
+    if (!sessionId) return null;
+    const root = path.join(homedir(), ".claude", "projects");
+    const dirObjects = fs.readdirSync(root);
+
+    for (const dirObject of dirObjects) {
+        const dirObjectPath = path.join(root, dirObject, sessionId + ".jsonl");
+        if (fs.existsSync(dirObjectPath)) return dirObjectPath;
+    }
+
+    return null;
+};
+
+/**
+ * Load and parse one specific log file (JSONL → data).
+ * @param {string} filePath
+ * @returns {{ object[] }}
+ */
+export const readJsonl = (filePath) => {
+    const data = fs.readFileSync(filePath, "utf8")
+        .trim().split("\n").filter(Boolean)
+        .map(line => JSON.parse(line));
+    return data;
+};
+/** 
+ * @param {object} line - content of single line
+ * @param {string} eventType
+ * @param {string} blockType
+ * @returns {object[]} matching line blocks
+ */
+const lineContentBlocks = (line, eventType, blockType) => {
+    const lineBlocks = [];
+    if (line.type !== eventType) return [];
+    const lineContent = line.message?.content;
+    if (!Array.isArray(lineContent)) return [];
+    for (const lineBlock of lineContent) {
+        if (lineBlock.type !== blockType) continue;
+        lineBlocks.push(lineBlock);
+    }
+    return lineBlocks;
+
+};
+
+/**
+ * Select content blocks of one type from transcript events of one type.
+ * @param {object[]} data - one object per transcript line
+ * @param {string} [eventType="assistant"]
+ * @param {string} [blockType="tool_use"]
+ * @returns {object[]} matching blocks, in transcript order
+ */
+export const filterContentBlocks = (data, eventType = "assistant", blockType = "tool_use") => {
+    const blocks = [];
+    switch (eventType) {
+        case "assistant":
+        case "user": {
+            for (const line of data) {
+                const lineBlocks = lineContentBlocks(line, eventType, blockType);
+                blocks.push(...lineBlocks);
+            }
+            break;
+        }
+        default: break;
+    }
+    return blocks;
+};
+
+/**
+ * Collect one input value from every content block that matches the given
+ * block type and tool name. Blocks whose input lacks the key, or whose value
+ * is not a string, are skipped.
+ * @param {object[]} blocks - content blocks
+ * @param {string} [blockType="tool_use"] - block type to accept
+ * @param {string[]} [blockNames=["Read","Write","Edit"]] - tool names to accept
+ * @param {string} [blockInputKey="file_path"] - key to read from block.input
+ * @returns {string[]} the values, in block order
+ */
+export const blockInputValues = (blocks, blockType = "tool_use", blockNames = ["Read", "Write", "Edit"], blockInputKey = "file_path") => {
+    const values = [];
+    for (const block of blocks) {
+        if (block.type !== blockType || !blockNames.includes(block.name)) continue;
+        if (typeof block.input?.[blockInputKey] !== "string") continue;
+        values.push(block.input[blockInputKey]);
+    }
+    return values;
+
+};
+
+/**
+ * Read a JSONL transcript and return input values of the blocks that match:
+ * events of eventType, blocks of blockType whose name is in blockNames,
+ * value read from block.input[blockInputKey] (strings only).
+ * @param {string|null} transcriptPath - empty or missing path returns []
+ * @param {object} [options]
+ * @param {string} [options.eventType="assistant"] - event type to look in
+ * @param {string} [options.blockType="tool_use"] - block type to accept
+ * @param {string[]} [options.blockNames=["Read","Write","Edit"]] - block names to accept
+ * @param {string} [options.blockInputKey="file_path"] - key read from block.input
+ * @returns {string[]} the values, in transcript order
+ */
+export const transcriptInputValues = (
+    transcriptPath,
+    {
+        eventType = "assistant",
+        blockType = "tool_use",
+        blockNames = ["Read", "Write", "Edit"],
+        blockInputKey = "file_path"
+    } = {}
+) => {
+    if (!transcriptPath) return [];
+
+    const transcript = readJsonl(transcriptPath);
+
+    const blocks = filterContentBlocks(transcript, eventType, blockType);
+    return blockInputValues(blocks, blockType, blockNames, blockInputKey);
 };
 
 // --- Grading ---
@@ -135,7 +279,7 @@ export const normalize = (text) =>
         .replace(/\r\n/g, "\n")
         .replace(/[ \t]+$/gm, "")
         .replace(/\s+$/, "")
-        + "\n";
+    + "\n";
 
 /**
  * Grade one agent run against the expected output.

@@ -120,11 +120,12 @@ const renderRow = (variant, name, c) => {
 /**
  * Render the per-variant × per-case results table.
  * @param {object} agg
+ * @param {string} [metricCol="Halluc-%"] - rate-column header (a "meta" log note's `metricCol` overrides)
  * @returns {string} markdown
  */
-const renderTable = (agg) => {
+const renderTable = (agg, metricCol = "Halluc-%") => {
     const header =
-        "| Variant | Case | PASS | FAIL | ERROR | Gradeable | Halluc-% |\n" +
+        `| Variant | Case | PASS | FAIL | ERROR | Gradeable | ${metricCol} |\n` +
         "|---|---|---|---|---|---|---|";
     const rows = [];
     for (const [variant, data] of Object.entries(agg)) {
@@ -180,9 +181,10 @@ const renderMeta = (file, records) => {
  * Render a one-line conclusion naming the lowest- and highest-rate variants.
  * Generic: the labels carry the meaning; interpretation is left to the reader.
  * @param {object} agg
+ * @param {string} [metricName="hallucination rate"] - a "meta" log note's `metric` overrides
  * @returns {string} markdown ("" if fewer than two gradeable variants)
  */
-const renderConclusion = (agg) => {
+const renderConclusion = (agg, metricName = "hallucination rate") => {
     const rows = Object.entries(agg)
         .map(([variant, data]) => ({ variant, fail: data.total.FAIL, ...stats(data.total) }))
         .filter(r => r.rate !== null);
@@ -192,7 +194,7 @@ const renderConclusion = (agg) => {
     const fmt = (r) => r.bound !== null
         ? `\`${r.variant}\` (${r.fail}/${r.gradeable}, true rate ≤ ${pct(r.bound)})`
         : `\`${r.variant}\` (${r.fail}/${r.gradeable}, ${pct(r.rate)} observed)`;
-    return `## Conclusion\n\nLowest hallucination rate: ${fmt(best)}. Highest: ${fmt(worst)}.`;
+    return `## Conclusion\n\nLowest ${metricName}: ${fmt(best)}. Highest: ${fmt(worst)}.`;
 };
 
 /**
@@ -239,17 +241,26 @@ const loadNotes = (reportDir, evalName) => {
 };
 
 /**
- * Assemble the full markdown report.
+ * Assemble the full markdown report. The log's "meta" note may carry
+ * `metric`/`metricCol` labels (e.g. "rooted rate" / "Rooted-%"); absent
+ * those, the hallucination-eval defaults apply.
  * @param {object} agg
  * @param {string} file - source log filename (for metadata)
- * @param {object[]} records - raw records (for metadata and appendices)
+ * @param {object[]} records - raw records (for metadata, labels, appendices)
  * @param {string} [notes=""] - hand-maintained notes markdown to inline
  * @returns {string} markdown
  */
-const renderReport = (agg, file, records, notes = "") =>
-    [renderMeta(file, records), renderConclusion(agg), renderSummary(agg), renderTable(agg), notes, renderAppendix(records)]
-        .filter(Boolean)
-        .join("\n\n");
+const renderReport = (agg, file, records, notes = "") => {
+    const meta = records.find(r => r.type === "note" && r.msg === "meta");
+    return [
+        renderMeta(file, records),
+        renderConclusion(agg, meta?.metric ?? undefined),
+        renderSummary(agg),
+        renderTable(agg, meta?.metricCol ?? undefined),
+        notes,
+        renderAppendix(records),
+    ].filter(Boolean).join("\n\n");
+};
 
 // --- CLI entry (runs only when executed directly, not when imported) ---
 
