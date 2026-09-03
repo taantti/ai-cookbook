@@ -4,7 +4,7 @@
 // compares the produced file to the template, and results are logged as JSONL
 // for eval-report.js to aggregate.
 
-import { preFlight, resetWorkspace, runAgent, grade, normalize, getCliVersion, removeGhostTwin } from "../utils/evalHelpers.js";
+import { preFlight, resetWorkspace, runAgent, grade, getCliVersion, removeGhostTwin, assertVariantsInSync } from "../utils/evalHelpers.js";
 import { createEvalLogger } from "../utils/evalLogger.js";
 import fs from "node:fs";
 
@@ -94,27 +94,11 @@ const runCaseWithRetry = (agentName, caseModel, maxAttempts = 5) => {
     return { ...outcome, attempts: maxAttempts }; // exhausted: keep the last attempt's errorDetail/cost
 };
 
-/**
- * Assert the two agent variants differ ONLY in their ## Rules section — otherwise
- * B is not a clean control and the A/B comparison is invalid.
- * @throws {Error} if the bodies differ outside the ## Rules section
- */
-const assertVariantsInSync = () => {
-    const dir = ".claude/agents/api-create-mock-data";
-    const bodyMinusRules = (file) => {
-        const content = fs.readFileSync(`${dir}/${file}`, "utf8");
-        const body = content.split(/^---$/m)[2] ?? ""; // drop frontmatter
-        return normalize(body.replace(/## Rules\n[\s\S]*?\n(## Steps)/, "$1"));
-    };
-    if (bodyMinusRules("api-create-mock-data.md") !== bodyMinusRules("api-create-mock-data.norules.md"))
-        throw new Error("Variant drift: the two api-create-mock-data files differ outside the ## Rules section. Re-sync per the folder README.");
-};
-
 // --- Main ---
 
 try {
     preFlight([MOCKDATADIR]);
-    assertVariantsInSync();
+    assertVariantsInSync(".claude/agents/api-create-mock-data", "api-create-mock-data.md", "api-create-mock-data.norules.md", "Rules");
     logger.note("meta", { cliVersion: getCliVersion() });
 
     for (const variant of VARIANTS) {

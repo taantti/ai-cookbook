@@ -1,6 +1,7 @@
 import {
-    preFlight, resetWorkspace, runAgent, normalize, isRootedPath, grade,
-    getCliVersion, removeGhostTwin, findTranscript, transcriptInputValues
+    preFlight, resetWorkspace, runAgent, isRootedPath, grade,
+    getCliVersion, removeGhostTwin, findTranscript, transcriptInputValues,
+    assertVariantsInSync
 } from "../utils/evalHelpers.js";
 import { createEvalLogger } from "../utils/evalLogger.js";
 import fs from "node:fs";
@@ -106,27 +107,11 @@ const runCase = (agentName, caseModel) => {
     };
 };
 
-/**
- * Assert the two agent variants differ ONLY in their ## Paths section — otherwise
- * B is not a clean control and the A/B comparison is invalid.
- * @throws {Error} if the bodies differ outside the ## Paths section
- */
-const assertVariantsInSync = () => {
-    const dir = ".claude/agents/api-create-mock-data";
-    const bodyMinusPaths = (file) => {
-        const content = fs.readFileSync(`${dir}/${file}`, "utf8");
-        const body = content.split(/^---$/m)[2] ?? ""; // drop frontmatter
-        return normalize(body.replace(/## Paths\n[\s\S]*?\n(## Boundaries)/, "$1"));
-    };
-    if (bodyMinusPaths("api-create-mock-data.md") !== bodyMinusPaths("api-create-mock-data.nopaths.md"))
-        throw new Error("Variant drift: the two api-create-mock-data files differ outside the ## Paths section. Re-sync per the folder README.");
-};
-
 // --- Main ---
 
 try {
     preFlight([MOCKDATADIR]);
-    assertVariantsInSync();
+    assertVariantsInSync(".claude/agents/api-create-mock-data", "api-create-mock-data.md", "api-create-mock-data.nopaths.md", "Paths");
     logger.note("meta", {
         cliVersion: getCliVersion(),
         metric: "rooted rate",

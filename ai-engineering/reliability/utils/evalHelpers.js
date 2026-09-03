@@ -115,6 +115,29 @@ export const isRootedPath = (filePath, rootedPathConditions = { 0: ["/", "\\"], 
     return false;
 };
 
+// --- Agent variants ---
+
+/**
+ * Assert two agent files differ ONLY in one ## section: drop the frontmatter
+ * from both, remove the named section from both bodies, normalize, compare.
+ * The section must be followed by another ## heading in the file.
+ * @param {string} dir - folder holding both agent files
+ * @param {string} mainFile - the real agent file name
+ * @param {string} variantFile - the eval variant file name
+ * @param {string} sectionName - heading text without "## ", e.g. "Rules"
+ * @throws {Error} if the bodies differ outside the named section
+ */
+export const assertVariantsInSync = (dir, mainFile, variantFile, sectionName) => {
+    const sectionRegex = new RegExp(`## ${sectionName}\\n[\\s\\S]*?\\n(?=## )`);
+    const bodyMinusSection = (file) => {
+        const content = fs.readFileSync(`${dir}/${file}`, "utf8");
+        const body = content.split(/^---$/m)[2] ?? ""; // drop frontmatter
+        return normalize(body.replace(sectionRegex, ""));
+    };
+    if (bodyMinusSection(mainFile) !== bodyMinusSection(variantFile))
+        throw new Error(`Variant drift: ${mainFile} and ${variantFile} differ outside the ## ${sectionName} section. Re-sync per the folder README.`);
+};
+
 // --- Agent invocation ---
 
 /**
