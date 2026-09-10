@@ -9,7 +9,7 @@ folder: **tool-specific** configuration for a particular AI coding assistant, an
 | Folder | Kind | What's inside |
 |---|---|---|
 | [`claude-code/`](claude-code/) | Claude Code (Anthropic) config | A backend-module scaffolding toolkit — single-job subagents, a skill, file templates, and a Workflow that together build a full module for a modular Node.js/Express + Mongoose ERP backend. |
-| [`ai-engineering/`](ai-engineering/) | Methodology (tool-agnostic) | Reliability and security engineering for LLM features: a runnable hallucination eval pipeline with an honest reporting layer, a spec for an AI reporting endpoint, plus reference cheat sheets. |
+| [`ai-engineering/`](ai-engineering/) | Methodology (tool-agnostic) | Reliability and security engineering for LLM features: two runnable eval pipelines (agent hallucinations; rooted file paths) with an honest reporting layer, a spec for an AI reporting endpoint, plus reference cheat sheets. |
 
 ## Using `claude-code/`
 
@@ -51,12 +51,15 @@ as a drop-in library.
 ### What's inside `ai-engineering/`
 
 - **`reliability/`** — how to measure a probabilistic component's reliability as a
-  *rate*, not a pass/fail. Includes a **runnable A/B hallucination eval** for a
-  scaffold agent (deterministic harness, JSONL logger, and an aggregating report
-  tool with an underpowered-run gate), an example log and the
-  [generated eval report](ai-engineering/reliability/report/mock-data/eval-hallucination.md),
-  the eval spec, and an **eval cheat sheet** (verdicts, the rule of three, point
-  estimate vs upper bound, glossary).
+  *rate*, not a pass/fail. Includes **two runnable A/B evals** for a scaffold
+  agent: a **hallucination eval** (deterministic harness, JSONL logger, and an
+  aggregating report tool with an underpowered-run gate —
+  [generated report](ai-engineering/reliability/report/mock-data/eval-hallucination.md))
+  and a **rooted-paths eval** that measures whether a prompt rule keeps
+  machine-rooted file paths out of generated code
+  ([generated report](ai-engineering/reliability/report/mock-data/eval-rooted-paths.md)).
+  Both come with specs, example logs, and an **eval cheat sheet** (verdicts, the
+  rule of three, point estimate vs upper bound, glossary).
 - **`reporting-endpoint/`** — the
   [spec](ai-engineering/reporting-endpoint/spec.md) for a read-only **AI
   reporting endpoint**: an LLM router classifies a natural-language question
